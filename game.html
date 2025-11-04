@@ -292,8 +292,9 @@
                 const numBlocks = Math.floor((this.config.N * this.config.N) / 13);
                 const availableCells = [];
 
-                for (let y = 0; y < this.config.N; y++) {
-                    for (let x = 0; x < this.config.N; x++) {
+                // Leave one space from edges (x and y from 1 to N-2)
+                for (let y = 1; y < this.config.N - 1; y++) {
+                    for (let x = 1; x < this.config.N - 1; x++) {
                         availableCells.push({x, y});
                     }
                 }
@@ -374,12 +375,12 @@
             }
 
             handleMouseMove(e) {
-                const pos = this.getMousePos(e.clientX, e.clientY);
+                const pos = this.getMousePos(e);
                 this.hoveredBlock = this.getBlockAtMouse(pos.x, pos.y);
             }
 
             handleClick(e) {
-                const pos = this.getMousePos(e.clientX, e.clientY);
+                const pos = this.getMousePos(e);
                 const block = this.getBlockAtMouse(pos.x, pos.y);
 
                 if (block && this.movingBlocks.length === 0) {
