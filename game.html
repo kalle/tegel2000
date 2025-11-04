@@ -203,7 +203,6 @@
                 // Visual constants
                 this.CELL_SIZE = 40;
                 this.BLOCK_MARGIN = 4;
-                this.SIDE_BLOCKS = 2; // Number of visible blocks on each side
 
                 this.colors = [
                     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
@@ -232,7 +231,7 @@
 
                 // Calculate canvas size
                 const gridSize = this.config.N * this.CELL_SIZE;
-                const sideSpace = this.CELL_SIZE * (this.SIDE_BLOCKS + 0.5);
+                const sideSpace = this.CELL_SIZE * (this.config.M + 1.5); // M waiting + 1 shootable + spacing
                 this.canvas.width = gridSize + sideSpace * 2;
                 this.canvas.height = gridSize + sideSpace * 2;
 
@@ -275,12 +274,16 @@
                 ];
 
                 sideConfigs.forEach(({name, direction}) => {
-                    // Create N + M blocks for each side
-                    for (let i = 0; i < this.config.N + this.config.M; i++) {
-                        this.sideBlocks[name].push({
-                            color: Math.floor(Math.random() * this.config.C),
-                            direction: direction
-                        });
+                    // Create N positions, each with (1 + M) blocks
+                    for (let i = 0; i < this.config.N; i++) {
+                        const position = [];
+                        for (let j = 0; j < 1 + this.config.M; j++) {
+                            position.push({
+                                color: Math.floor(Math.random() * this.config.C),
+                                direction: direction
+                            });
+                        }
+                        this.sideBlocks[name].push(position);
                     }
                 });
             }
@@ -323,18 +326,19 @@
             }
 
             getBlockAtMouse(mouseX, mouseY) {
-                // Check each side's shootable blocks
+                // Check each side's shootable blocks (depth 0 only)
                 const sides = ['left', 'up', 'right', 'down'];
 
                 for (const side of sides) {
-                    const blocks = this.sideBlocks[side];
+                    const positions = this.sideBlocks[side];
 
-                    for (let i = 0; i < Math.min(this.config.N, blocks.length); i++) {
-                        const pos = this.getSideBlockPosition(side, i);
+                    for (let i = 0; i < positions.length; i++) {
+                        // Only check the shootable block (depth 0)
+                        const pos = this.getSideBlockPosition(side, i, 0);
 
                         if (mouseX >= pos.x && mouseX <= pos.x + this.CELL_SIZE &&
                             mouseY >= pos.y && mouseY <= pos.y + this.CELL_SIZE) {
-                            return {side, index: i};
+                            return {side, position: i};
                         }
                     }
                 }
@@ -342,29 +346,29 @@
                 return null;
             }
 
-            getSideBlockPosition(side, index) {
-                const offset = this.CELL_SIZE * 0.25;
+            getSideBlockPosition(side, position, depth) {
+                const margin = this.CELL_SIZE * 0.25;
 
                 switch(side) {
                     case 'left':
                         return {
-                            x: offset,
-                            y: this.gridOffsetY + index * this.CELL_SIZE
+                            x: this.gridOffsetX - this.CELL_SIZE * (depth + 1),
+                            y: this.gridOffsetY + position * this.CELL_SIZE
                         };
                     case 'right':
                         return {
-                            x: this.gridOffsetX + this.config.N * this.CELL_SIZE + this.CELL_SIZE,
-                            y: this.gridOffsetY + index * this.CELL_SIZE
+                            x: this.gridOffsetX + this.config.N * this.CELL_SIZE + this.CELL_SIZE * depth,
+                            y: this.gridOffsetY + position * this.CELL_SIZE
                         };
                     case 'up':
                         return {
-                            x: this.gridOffsetX + index * this.CELL_SIZE,
-                            y: offset
+                            x: this.gridOffsetX + position * this.CELL_SIZE,
+                            y: this.gridOffsetY - this.CELL_SIZE * (depth + 1)
                         };
                     case 'down':
                         return {
-                            x: this.gridOffsetX + index * this.CELL_SIZE,
-                            y: this.gridOffsetY + this.config.N * this.CELL_SIZE + this.CELL_SIZE
+                            x: this.gridOffsetX + position * this.CELL_SIZE,
+                            y: this.gridOffsetY + this.config.N * this.CELL_SIZE + this.CELL_SIZE * depth
                         };
                 }
             }
@@ -379,16 +383,17 @@
                 const block = this.getBlockAtMouse(pos.x, pos.y);
 
                 if (block && this.movingBlocks.length === 0) {
-                    this.shootBlock(block.side, block.index);
+                    this.shootBlock(block.side, block.position);
                 }
             }
 
-            shootBlock(side, index) {
-                const blocks = this.sideBlocks[side];
-                if (index >= blocks.length) return;
+            shootBlock(side, position) {
+                const positionBlocks = this.sideBlocks[side][position];
+                if (!positionBlocks || positionBlocks.length === 0) return;
 
-                const block = blocks[index];
-                const startPos = this.getStartPosition(side, index);
+                // Take the first block (shootable block)
+                const block = positionBlocks.shift();
+                const startPos = this.getStartPosition(side, position);
 
                 // Create moving block
                 const movingBlock = {
@@ -403,9 +408,8 @@
 
                 this.movingBlocks.push(movingBlock);
 
-                // Remove from side and add new block from waiting queue
-                blocks.splice(index, 1);
-                blocks.push({
+                // Add new block to the end of waiting queue
+                positionBlocks.push({
                     color: Math.floor(Math.random() * this.config.C),
                     direction: block.direction
                 });
@@ -479,15 +483,18 @@
                     position = finalX;
                 }
 
-                // Add to waiting queue (end of array)
-                this.sideBlocks[side].push({
-                    color: block.color,
-                    direction: newDirection
-                });
+                // Add to waiting queue (end of position's array)
+                const positionBlocks = this.sideBlocks[side][position];
+                if (positionBlocks) {
+                    positionBlocks.push({
+                        color: block.color,
+                        direction: newDirection
+                    });
 
-                // Remove last block if exceeds limit
-                if (this.sideBlocks[side].length > this.config.N + this.config.M) {
-                    this.sideBlocks[side].shift();
+                    // Remove first (oldest) block if exceeds limit
+                    if (positionBlocks.length > 1 + this.config.M) {
+                        positionBlocks.shift();
+                    }
                 }
 
                 // Remove from moving blocks
@@ -724,15 +731,24 @@
                 const sides = ['left', 'up', 'right', 'down'];
 
                 sides.forEach(side => {
-                    const blocks = this.sideBlocks[side];
+                    const positions = this.sideBlocks[side];
 
-                    for (let i = 0; i < Math.min(this.config.N, blocks.length); i++) {
-                        const pos = this.getSideBlockPosition(side, i);
-                        const isHovered = this.hoveredBlock &&
-                                        this.hoveredBlock.side === side &&
-                                        this.hoveredBlock.index === i;
+                    // For each position (row/column)
+                    for (let i = 0; i < positions.length; i++) {
+                        const positionBlocks = positions[i];
 
-                        this.drawBlock(pos.x, pos.y, blocks[i].color, blocks[i].direction, isHovered);
+                        // Draw all blocks at this position (shootable + waiting)
+                        for (let depth = 0; depth < positionBlocks.length; depth++) {
+                            const pos = this.getSideBlockPosition(side, i, depth);
+                            const block = positionBlocks[depth];
+
+                            // Only the shootable block (depth 0) can be hovered
+                            const isHovered = depth === 0 && this.hoveredBlock &&
+                                            this.hoveredBlock.side === side &&
+                                            this.hoveredBlock.position === i;
+
+                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered);
+                        }
                     }
                 });
             }
