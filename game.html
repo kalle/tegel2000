@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Shooter Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .score {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        canvas {
+            display: block;
+            border: 3px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            background: #f5f5f5;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .config {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .config-item label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .config-item input {
+            width: 80px;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 1em;
+        }
+
+        .win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .win-message.show {
+            display: block;
+            animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .win-message h2 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .win-message p {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>Block Shooter</h1>
+            <div class="score">Score: <span id="scoreValue">0</span></div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="controls">
+            <button onclick="game.reset()">New Game</button>
+        </div>
+
+        <div class="config">
+            <div class="config-item">
+                <label>Grid Size (N)</label>
+                <input type="number" id="gridSize" value="9" min="3" max="15">
+            </div>
+            <div class="config-item">
+                <label>Waiting Blocks (M)</label>
+                <input type="number" id="waitingBlocks" value="2" min="0" max="5">
+            </div>
+            <div class="config-item">
+                <label>Colors (C)</label>
+                <input type="number" id="colors" value="5" min="2" max="8">
+            </div>
+            <div class="config-item">
+                <label>Match Size (Y)</label>
+                <input type="number" id="matchSize" value="3" min="2" max="5">
+            </div>
+        </div>
+    </div>
+
+    <div class="win-message" id="winMessage">
+        <h2>🎉 You Win! 🎉</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button onclick="game.reset(); document.getElementById('winMessage').classList.remove('show');">Play Again</button>
+    </div>
+
+    <script>
+        class BlockShooterGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+
+                // Configuration
+                this.config = {
+                    N: 9,           // Grid size
+                    M: 2,           // Waiting blocks
+                    C: 5,           // Number of colors
+                    Y: 3            // Match size
+                };
+
+                // Visual constants
+                this.CELL_SIZE = 40;
+                this.BLOCK_MARGIN = 4;
+                this.SIDE_BLOCKS = 2; // Number of visible blocks on each side
+
+                this.colors = [
+                    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
+                    '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'
+                ];
+
+                // Directions: 0=right, 1=down, 2=left, 3=up
+                this.directionVectors = [
+                    {dx: 1, dy: 0},   // right
+                    {dx: 0, dy: 1},   // down
+                    {dx: -1, dy: 0},  // left
+                    {dx: 0, dy: -1}   // up
+                ];
+
+                this.reset();
+                this.setupEventListeners();
+                this.animate();
+            }
+
+            reset() {
+                // Read configuration from inputs
+                this.config.N = parseInt(document.getElementById('gridSize').value);
+                this.config.M = parseInt(document.getElementById('waitingBlocks').value);
+                this.config.C = parseInt(document.getElementById('colors').value);
+                this.config.Y = parseInt(document.getElementById('matchSize').value);
+
+                // Calculate canvas size
+                const gridSize = this.config.N * this.CELL_SIZE;
+                const sideSpace = this.CELL_SIZE * (this.SIDE_BLOCKS + 0.5);
+                this.canvas.width = gridSize + sideSpace * 2;
+                this.canvas.height = gridSize + sideSpace * 2;
+
+                // Calculate offsets for centering
+                this.gridOffsetX = sideSpace;
+                this.gridOffsetY = sideSpace;
+
+                // Initialize game state
+                this.grid = Array(this.config.N).fill(null).map(() => Array(this.config.N).fill(null));
+                this.score = 0;
+                this.updateScore();
+
+                // Initialize side blocks
+                this.initializeSideBlocks();
+
+                // Place initial random blocks
+                this.placeInitialBlocks();
+
+                // Animation state
+                this.animatingBlocks = [];
+                this.movingBlocks = [];
+
+                // Mouse state
+                this.hoveredBlock = null;
+            }
+
+            initializeSideBlocks() {
+                this.sideBlocks = {
+                    right: [],  // Shoots left (direction 2)
+                    down: [],   // Shoots up (direction 3)
+                    left: [],   // Shoots right (direction 0)
+                    up: []      // Shoots down (direction 1)
+                };
+
+                const sideConfigs = [
+                    {name: 'right', direction: 2},
+                    {name: 'down', direction: 3},
+                    {name: 'left', direction: 0},
+                    {name: 'up', direction: 1}
+                ];
+
+                sideConfigs.forEach(({name, direction}) => {
+                    // Create N + M blocks for each side
+                    for (let i = 0; i < this.config.N + this.config.M; i++) {
+                        this.sideBlocks[name].push({
+                            color: Math.floor(Math.random() * this.config.C),
+                            direction: direction
+                        });
+                    }
+                });
+            }
+
+            placeInitialBlocks() {
+                const numBlocks = Math.floor((this.config.N * this.config.N) / 13);
+                const availableCells = [];
+
+                for (let y = 0; y < this.config.N; y++) {
+                    for (let x = 0; x < this.config.N; x++) {
+                        availableCells.push({x, y});
+                    }
+                }
+
+                for (let i = 0; i < numBlocks; i++) {
+                    if (availableCells.length === 0) break;
+
+                    const idx = Math.floor(Math.random() * availableCells.length);
+                    const {x, y} = availableCells.splice(idx, 1)[0];
+
+                    // Random color and direction
+                    this.grid[y][x] = {
+                        color: Math.floor(Math.random() * this.config.C),
+                        direction: Math.floor(Math.random() * 4)
+                    };
+                }
+            }
+
+            setupEventListeners() {
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+            }
+
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            getBlockAtMouse(mouseX, mouseY) {
+                // Check each side's shootable blocks
+                const sides = ['left', 'up', 'right', 'down'];
+
+                for (const side of sides) {
+                    const blocks = this.sideBlocks[side];
+
+                    for (let i = 0; i < Math.min(this.config.N, blocks.length); i++) {
+                        const pos = this.getSideBlockPosition(side, i);
+
+                        if (mouseX >= pos.x && mouseX <= pos.x + this.CELL_SIZE &&
+                            mouseY >= pos.y && mouseY <= pos.y + this.CELL_SIZE) {
+                            return {side, index: i};
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            getSideBlockPosition(side, index) {
+                const offset = this.CELL_SIZE * 0.25;
+
+                switch(side) {
+                    case 'left':
+                        return {
+                            x: offset,
+                            y: this.gridOffsetY + index * this.CELL_SIZE
+                        };
+                    case 'right':
+                        return {
+                            x: this.gridOffsetX + this.config.N * this.CELL_SIZE + this.CELL_SIZE,
+                            y: this.gridOffsetY + index * this.CELL_SIZE
+                        };
+                    case 'up':
+                        return {
+                            x: this.gridOffsetX + index * this.CELL_SIZE,
+                            y: offset
+                        };
+                    case 'down':
+                        return {
+                            x: this.gridOffsetX + index * this.CELL_SIZE,
+                            y: this.gridOffsetY + this.config.N * this.CELL_SIZE + this.CELL_SIZE
+                        };
+                }
+            }
+
+            handleMouseMove(e) {
+                const pos = this.getMousePos(e.clientX, e.clientY);
+                this.hoveredBlock = this.getBlockAtMouse(pos.x, pos.y);
+            }
+
+            handleClick(e) {
+                const pos = this.getMousePos(e.clientX, e.clientY);
+                const block = this.getBlockAtMouse(pos.x, pos.y);
+
+                if (block && this.movingBlocks.length === 0) {
+                    this.shootBlock(block.side, block.index);
+                }
+            }
+
+            shootBlock(side, index) {
+                const blocks = this.sideBlocks[side];
+                if (index >= blocks.length) return;
+
+                const block = blocks[index];
+                const startPos = this.getStartPosition(side, index);
+
+                // Create moving block
+                const movingBlock = {
+                    color: block.color,
+                    direction: block.direction,
+                    x: startPos.x,
+                    y: startPos.y,
+                    targetX: startPos.x,
+                    targetY: startPos.y,
+                    moving: true
+                };
+
+                this.movingBlocks.push(movingBlock);
+
+                // Remove from side and add new block from waiting queue
+                blocks.splice(index, 1);
+                blocks.push({
+                    color: Math.floor(Math.random() * this.config.C),
+                    direction: block.direction
+                });
+
+                // Calculate initial trajectory
+                this.moveBlockUntilCollision(movingBlock);
+            }
+
+            getStartPosition(side, index) {
+                switch(side) {
+                    case 'left':
+                        return {x: 0, y: index};
+                    case 'right':
+                        return {x: this.config.N - 1, y: index};
+                    case 'up':
+                        return {x: index, y: 0};
+                    case 'down':
+                        return {x: index, y: this.config.N - 1};
+                }
+            }
+
+            moveBlockUntilCollision(block) {
+                const dir = this.directionVectors[block.direction];
+                let x = block.x;
+                let y = block.y;
+
+                // Move until collision or edge
+                while (true) {
+                    const nextX = x + dir.dx;
+                    const nextY = y + dir.dy;
+
+                    // Check if out of bounds
+                    if (nextX < 0 || nextX >= this.config.N ||
+                        nextY < 0 || nextY >= this.config.N) {
+                        // Block goes to opposite side
+                        this.sendToOppositeSide(block, x, y);
+                        return;
+                    }
+
+                    // Check if collision with existing block
+                    if (this.grid[nextY][nextX] !== null) {
+                        // Place block at current position
+                        this.placeBlock(block, x, y);
+                        return;
+                    }
+
+                    x = nextX;
+                    y = nextY;
+                }
+            }
+
+            sendToOppositeSide(block, finalX, finalY) {
+                // Reverse direction
+                const newDirection = (block.direction + 2) % 4;
+
+                // Determine which side and position
+                let side;
+                let position;
+
+                if (finalX === 0) {
+                    side = 'left';
+                    position = finalY;
+                } else if (finalX === this.config.N - 1) {
+                    side = 'right';
+                    position = finalY;
+                } else if (finalY === 0) {
+                    side = 'up';
+                    position = finalX;
+                } else {
+                    side = 'down';
+                    position = finalX;
+                }
+
+                // Add to waiting queue (end of array)
+                this.sideBlocks[side].push({
+                    color: block.color,
+                    direction: newDirection
+                });
+
+                // Remove last block if exceeds limit
+                if (this.sideBlocks[side].length > this.config.N + this.config.M) {
+                    this.sideBlocks[side].shift();
+                }
+
+                // Remove from moving blocks
+                const idx = this.movingBlocks.indexOf(block);
+                if (idx > -1) {
+                    this.movingBlocks.splice(idx, 1);
+                }
+            }
+
+            placeBlock(block, x, y) {
+                this.grid[y][x] = {
+                    color: block.color,
+                    direction: block.direction
+                };
+
+                // Remove from moving blocks
+                const idx = this.movingBlocks.indexOf(block);
+                if (idx > -1) {
+                    this.movingBlocks.splice(idx, 1);
+                }
+
+                // Check for matches
+                setTimeout(() => {
+                    this.checkAndRemoveMatches();
+                }, 100);
+            }
+
+            checkAndRemoveMatches() {
+                const toRemove = new Set();
+                const visited = new Set();
+
+                // Check all blocks on grid
+                for (let y = 0; y < this.config.N; y++) {
+                    for (let x = 0; x < this.config.N; x++) {
+                        if (this.grid[y][x] !== null) {
+                            const connected = this.findConnectedBlocks(x, y);
+                            if (connected.length >= this.config.Y) {
+                                connected.forEach(pos => toRemove.add(`${pos.x},${pos.y}`));
+                            }
+                        }
+                    }
+                }
+
+                if (toRemove.size > 0) {
+                    // Animate removal
+                    toRemove.forEach(key => {
+                        const [x, y] = key.split(',').map(Number);
+                        this.animatingBlocks.push({
+                            x, y,
+                            scale: 1,
+                            alpha: 1,
+                            color: this.grid[y][x].color
+                        });
+                        this.grid[y][x] = null;
+                    });
+
+                    this.score += toRemove.size;
+                    this.updateScore();
+
+                    // After animation, check for freed blocks
+                    setTimeout(() => {
+                        this.animatingBlocks = [];
+                        this.moveFreedBlocks();
+                    }, 300);
+                } else {
+                    // Check win condition
+                    this.checkWinCondition();
+                }
+            }
+
+            findConnectedBlocks(startX, startY) {
+                const block = this.grid[startY][startX];
+                if (!block) return [];
+
+                const color = block.color;
+                const connected = [];
+                const visited = new Set();
+                const queue = [{x: startX, y: startY}];
+
+                while (queue.length > 0) {
+                    const {x, y} = queue.shift();
+                    const key = `${x},${y}`;
+
+                    if (visited.has(key)) continue;
+                    visited.add(key);
+
+                    if (x < 0 || x >= this.config.N || y < 0 || y >= this.config.N) continue;
+                    if (this.grid[y][x] === null || this.grid[y][x].color !== color) continue;
+
+                    connected.push({x, y});
+
+                    // Check horizontal and vertical neighbors
+                    queue.push({x: x + 1, y});
+                    queue.push({x: x - 1, y});
+                    queue.push({x, y: y + 1});
+                    queue.push({x, y: y - 1});
+                }
+
+                return connected;
+            }
+
+            moveFreedBlocks() {
+                const blocksToMove = [];
+
+                // Find all blocks that can move
+                for (let y = 0; y < this.config.N; y++) {
+                    for (let x = 0; x < this.config.N; x++) {
+                        if (this.grid[y][x] !== null) {
+                            const dir = this.directionVectors[this.grid[y][x].direction];
+                            const nextX = x + dir.dx;
+                            const nextY = y + dir.dy;
+
+                            // Check if can move
+                            if (nextX >= 0 && nextX < this.config.N &&
+                                nextY >= 0 && nextY < this.config.N &&
+                                this.grid[nextY][nextX] === null) {
+
+                                blocksToMove.push({
+                                    x, y,
+                                    block: this.grid[y][x]
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (blocksToMove.length > 0) {
+                    // Move all freed blocks
+                    blocksToMove.forEach(({x, y, block}) => {
+                        this.grid[y][x] = null;
+
+                        const movingBlock = {
+                            color: block.color,
+                            direction: block.direction,
+                            x: x,
+                            y: y,
+                            moving: true
+                        };
+
+                        this.movingBlocks.push(movingBlock);
+                        this.moveBlockUntilCollision(movingBlock);
+                    });
+
+                    // Check for matches again after a delay
+                    setTimeout(() => {
+                        if (this.movingBlocks.length === 0) {
+                            this.checkAndRemoveMatches();
+                        }
+                    }, 200);
+                } else {
+                    this.checkWinCondition();
+                }
+            }
+
+            checkWinCondition() {
+                // Check if grid is empty
+                let isEmpty = true;
+                for (let y = 0; y < this.config.N; y++) {
+                    for (let x = 0; x < this.config.N; x++) {
+                        if (this.grid[y][x] !== null) {
+                            isEmpty = false;
+                            break;
+                        }
+                    }
+                    if (!isEmpty) break;
+                }
+
+                if (isEmpty) {
+                    document.getElementById('finalScore').textContent = this.score;
+                    document.getElementById('winMessage').classList.add('show');
+                }
+            }
+
+            updateScore() {
+                document.getElementById('scoreValue').textContent = this.score;
+            }
+
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = '#f5f5f5';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw grid
+                this.drawGrid();
+
+                // Draw blocks on grid
+                this.drawGridBlocks();
+
+                // Draw side blocks
+                this.drawSideBlocks();
+
+                // Draw moving blocks
+                this.drawMovingBlocks();
+
+                // Draw animating blocks
+                this.drawAnimatingBlocks();
+            }
+
+            drawGrid() {
+                this.ctx.strokeStyle = '#ddd';
+                this.ctx.lineWidth = 1;
+
+                for (let y = 0; y <= this.config.N; y++) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.gridOffsetX, this.gridOffsetY + y * this.CELL_SIZE);
+                    this.ctx.lineTo(this.gridOffsetX + this.config.N * this.CELL_SIZE, this.gridOffsetY + y * this.CELL_SIZE);
+                    this.ctx.stroke();
+                }
+
+                for (let x = 0; x <= this.config.N; x++) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.gridOffsetX + x * this.CELL_SIZE, this.gridOffsetY);
+                    this.ctx.lineTo(this.gridOffsetX + x * this.CELL_SIZE, this.gridOffsetY + this.config.N * this.CELL_SIZE);
+                    this.ctx.stroke();
+                }
+            }
+
+            drawGridBlocks() {
+                for (let y = 0; y < this.config.N; y++) {
+                    for (let x = 0; x < this.config.N; x++) {
+                        if (this.grid[y][x] !== null) {
+                            this.drawBlock(
+                                this.gridOffsetX + x * this.CELL_SIZE,
+                                this.gridOffsetY + y * this.CELL_SIZE,
+                                this.grid[y][x].color,
+                                this.grid[y][x].direction
+                            );
+                        }
+                    }
+                }
+            }
+
+            drawSideBlocks() {
+                const sides = ['left', 'up', 'right', 'down'];
+
+                sides.forEach(side => {
+                    const blocks = this.sideBlocks[side];
+
+                    for (let i = 0; i < Math.min(this.config.N, blocks.length); i++) {
+                        const pos = this.getSideBlockPosition(side, i);
+                        const isHovered = this.hoveredBlock &&
+                                        this.hoveredBlock.side === side &&
+                                        this.hoveredBlock.index === i;
+
+                        this.drawBlock(pos.x, pos.y, blocks[i].color, blocks[i].direction, isHovered);
+                    }
+                });
+            }
+
+            drawMovingBlocks() {
+                // Moving blocks are drawn in grid coordinates
+                this.movingBlocks.forEach(block => {
+                    this.drawBlock(
+                        this.gridOffsetX + block.x * this.CELL_SIZE,
+                        this.gridOffsetY + block.y * this.CELL_SIZE,
+                        block.color,
+                        block.direction
+                    );
+                });
+            }
+
+            drawAnimatingBlocks() {
+                this.animatingBlocks.forEach(anim => {
+                    const x = this.gridOffsetX + anim.x * this.CELL_SIZE;
+                    const y = this.gridOffsetY + anim.y * this.CELL_SIZE;
+
+                    this.ctx.save();
+                    this.ctx.globalAlpha = anim.alpha;
+                    this.ctx.translate(x + this.CELL_SIZE / 2, y + this.CELL_SIZE / 2);
+                    this.ctx.scale(anim.scale, anim.scale);
+                    this.ctx.translate(-this.CELL_SIZE / 2, -this.CELL_SIZE / 2);
+
+                    this.ctx.fillStyle = this.colors[anim.color];
+                    this.ctx.fillRect(
+                        this.BLOCK_MARGIN,
+                        this.BLOCK_MARGIN,
+                        this.CELL_SIZE - this.BLOCK_MARGIN * 2,
+                        this.CELL_SIZE - this.BLOCK_MARGIN * 2
+                    );
+
+                    this.ctx.restore();
+
+                    // Update animation
+                    anim.scale += 0.05;
+                    anim.alpha -= 0.05;
+                });
+
+                // Remove finished animations
+                this.animatingBlocks = this.animatingBlocks.filter(anim => anim.alpha > 0);
+            }
+
+            drawBlock(x, y, colorIndex, direction, isHovered = false) {
+                // Draw block
+                this.ctx.fillStyle = this.colors[colorIndex];
+
+                if (isHovered) {
+                    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    this.ctx.shadowBlur = 10;
+                }
+
+                this.ctx.fillRect(
+                    x + this.BLOCK_MARGIN,
+                    y + this.BLOCK_MARGIN,
+                    this.CELL_SIZE - this.BLOCK_MARGIN * 2,
+                    this.CELL_SIZE - this.BLOCK_MARGIN * 2
+                );
+
+                this.ctx.shadowBlur = 0;
+
+                // Draw direction indicator
+                this.drawDirectionArrow(x, y, direction);
+            }
+
+            drawDirectionArrow(x, y, direction) {
+                const centerX = x + this.CELL_SIZE / 2;
+                const centerY = y + this.CELL_SIZE / 2;
+                const size = 6;
+
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                this.ctx.beginPath();
+
+                switch(direction) {
+                    case 0: // right
+                        this.ctx.moveTo(centerX - size, centerY - size);
+                        this.ctx.lineTo(centerX + size, centerY);
+                        this.ctx.lineTo(centerX - size, centerY + size);
+                        break;
+                    case 1: // down
+                        this.ctx.moveTo(centerX - size, centerY - size);
+                        this.ctx.lineTo(centerX, centerY + size);
+                        this.ctx.lineTo(centerX + size, centerY - size);
+                        break;
+                    case 2: // left
+                        this.ctx.moveTo(centerX + size, centerY - size);
+                        this.ctx.lineTo(centerX - size, centerY);
+                        this.ctx.lineTo(centerX + size, centerY + size);
+                        break;
+                    case 3: // up
+                        this.ctx.moveTo(centerX - size, centerY + size);
+                        this.ctx.lineTo(centerX, centerY - size);
+                        this.ctx.lineTo(centerX + size, centerY + size);
+                        break;
+                }
+
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+
+            animate() {
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Initialize game
+        const game = new BlockShooterGame();
+    </script>
+</body>
+</html>
