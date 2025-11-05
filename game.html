@@ -488,6 +488,40 @@
                         block.endsAtEdge = true;
                         block.finalX = x;
                         block.finalY = y;
+
+                        // Calculate which side it goes to
+                        let side, position;
+                        if (x === 0) {
+                            side = 'left';
+                            position = y;
+                        } else if (x === this.config.N - 1) {
+                            side = 'right';
+                            position = y;
+                        } else if (y === 0) {
+                            side = 'up';
+                            position = x;
+                        } else {
+                            side = 'down';
+                            position = x;
+                        }
+
+                        // Add animation path to the side position
+                        const sidePos = this.getSideBlockPosition(side, position, 0);
+                        const sideCellX = (sidePos.x - this.gridOffsetX) / this.CELL_SIZE;
+                        const sideCellY = (sidePos.y - this.gridOffsetY) / this.CELL_SIZE;
+
+                        // Add intermediate points for smooth animation to side
+                        const steps = 5;
+                        for (let i = 1; i <= steps; i++) {
+                            const t = i / steps;
+                            path.push({
+                                x: x + (sideCellX - x) * t,
+                                y: y + (sideCellY - y) * t
+                            });
+                        }
+
+                        block.destinationSide = side;
+                        block.destinationPosition = position;
                         return;
                     }
 
@@ -537,29 +571,11 @@
                 }
             }
 
-            sendToOppositeSide(block, finalX, finalY) {
-                // Reverse direction
+            addBlockToSide(block, side, position) {
+                // Reverse direction for the block entering from opposite side
                 const newDirection = (block.direction + 2) % 4;
 
-                // Determine which side and position
-                let side;
-                let position;
-
-                if (finalX === 0) {
-                    side = 'left';
-                    position = finalY;
-                } else if (finalX === this.config.N - 1) {
-                    side = 'right';
-                    position = finalY;
-                } else if (finalY === 0) {
-                    side = 'up';
-                    position = finalX;
-                } else {
-                    side = 'down';
-                    position = finalX;
-                }
-
-                console.log(`Block sent to opposite side: ${side} position ${position}, color ${block.color}, new direction ${newDirection}`);
+                console.log(`Block added to ${side} position ${position}, color ${block.color}, new direction ${newDirection}`);
 
                 // Add to FRONT of queue (becomes next shootable block)
                 const positionBlocks = this.sideBlocks[side][position];
@@ -574,7 +590,6 @@
                         positionBlocks.pop();
                     }
                 }
-                // Note: movingBlocks removal is handled by updateMovingBlocks()
             }
 
             placeBlock(block, x, y) {
@@ -903,12 +918,13 @@
                                             this.hoveredBlock.side === side &&
                                             this.hoveredBlock.position === i;
 
-                            // Only show arrow if:
-                            // - It's the shootable block (depth 0) AND can hit something
+                            // Determine if arrow should be grayed
+                            // - Waiting blocks (depth > 0): grayed
+                            // - Shootable blocks that can't hit anything: grayed
                             const canShoot = depth === 0 && this.willBlockHitAnything(side, i);
-                            const direction = canShoot ? block.direction : null;
+                            const grayedArrow = !canShoot;
 
-                            this.drawBlock(pos.x, pos.y, block.color, direction, isHovered);
+                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered, grayedArrow);
                         }
                     }
                 });
@@ -956,7 +972,7 @@
                 this.animatingBlocks = this.animatingBlocks.filter(anim => anim.alpha > 0);
             }
 
-            drawBlock(x, y, colorIndex, direction, isHovered = false) {
+            drawBlock(x, y, colorIndex, direction, isHovered = false, grayedArrow = false) {
                 // Draw block
                 this.ctx.fillStyle = this.colors[colorIndex];
 
@@ -975,10 +991,10 @@
                 this.ctx.shadowBlur = 0;
 
                 // Draw direction indicator (only if direction is not null)
-                this.drawDirectionArrow(x, y, direction);
+                this.drawDirectionArrow(x, y, direction, grayedArrow);
             }
 
-            drawDirectionArrow(x, y, direction) {
+            drawDirectionArrow(x, y, direction, grayed = false) {
                 // Don't draw arrow for static blocks (direction === null)
                 if (direction === null) return;
 
@@ -986,7 +1002,8 @@
                 const centerY = y + this.CELL_SIZE / 2;
                 const size = 6;
 
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                // Gray out arrow for non-shootable blocks
+                this.ctx.fillStyle = grayed ? 'rgba(128, 128, 128, 0.5)' : 'rgba(255, 255, 255, 0.7)';
                 this.ctx.beginPath();
 
                 switch(direction) {
@@ -1041,7 +1058,8 @@
                                 block.y = block.finalY;
 
                                 if (block.endsAtEdge) {
-                                    this.sendToOppositeSide(block, block.finalX, block.finalY);
+                                    // Block has animated to side position, now add to queue
+                                    this.addBlockToSide(block, block.destinationSide, block.destinationPosition);
                                 } else {
                                     this.placeBlock(block, block.finalX, block.finalY);
                                 }
