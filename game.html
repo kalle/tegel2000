@@ -590,6 +590,11 @@
                         positionBlocks.pop();
                     }
                 }
+
+                // Grid state has changed - check if any blocks can now move
+                setTimeout(() => {
+                    this.moveFreedBlocks();
+                }, 100);
             }
 
             placeBlock(block, x, y) {
