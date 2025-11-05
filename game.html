@@ -418,8 +418,8 @@
                     direction: block.direction
                 });
 
-                // Calculate initial trajectory
-                this.moveBlockUntilCollision(movingBlock);
+                // Calculate initial trajectory (true = shot block, can go to opposite side)
+                this.moveBlockUntilCollision(movingBlock, true);
             }
 
             getStartPosition(side, index) {
@@ -435,7 +435,7 @@
                 }
             }
 
-            moveBlockUntilCollision(block) {
+            moveBlockUntilCollision(block, isShotBlock = false) {
                 const dir = this.directionVectors[block.direction];
                 let x = block.x;
                 let y = block.y;
@@ -448,8 +448,16 @@
                     // Check if out of bounds
                     if (nextX < 0 || nextX >= this.config.N ||
                         nextY < 0 || nextY >= this.config.N) {
-                        // Block goes to opposite side
-                        this.sendToOppositeSide(block, x, y);
+
+                        // Only shot blocks go to opposite side
+                        // Freed blocks just stop at the edge
+                        if (isShotBlock) {
+                            console.log(`Shot block reached edge at (${x}, ${y}), sending to opposite side`);
+                            this.sendToOppositeSide(block, x, y);
+                        } else {
+                            console.log(`Freed block reached edge at (${x}, ${y}), stopping here`);
+                            this.placeBlock(block, x, y);
+                        }
                         return;
                     }
 
@@ -655,7 +663,7 @@
                         };
 
                         this.movingBlocks.push(movingBlock);
-                        this.moveBlockUntilCollision(movingBlock);
+                        this.moveBlockUntilCollision(movingBlock, false); // Freed blocks stop at edge
                     });
 
                     // Check for matches again after a delay
