@@ -694,8 +694,9 @@
             moveFreedBlocks() {
                 console.log('=== moveFreedBlocks called ===');
                 const blocksToMove = [];
+                const targetPositions = new Map(); // Track where blocks want to move
 
-                // Find all blocks that can move
+                // Find all blocks that can move and track their targets
                 for (let y = 0; y < this.config.N; y++) {
                     for (let x = 0; x < this.config.N; x++) {
                         if (this.grid[y][x] !== null) {
@@ -713,12 +714,25 @@
                                 nextY >= 0 && nextY < this.config.N &&
                                 this.grid[nextY][nextX] === null) {
 
-                                blocksToMove.push({
-                                    x, y,
-                                    block: this.grid[y][x]
-                                });
+                                const targetKey = `${nextX},${nextY}`;
+
+                                // Track which blocks want to move to this target
+                                if (!targetPositions.has(targetKey)) {
+                                    targetPositions.set(targetKey, []);
+                                }
+                                targetPositions.get(targetKey).push({x, y, block: this.grid[y][x]});
                             }
                         }
+                    }
+                }
+
+                // Only move blocks that don't have collision conflicts
+                for (const [targetKey, blockList] of targetPositions.entries()) {
+                    // If multiple blocks want to move to the same position, don't move any of them
+                    if (blockList.length === 1) {
+                        blocksToMove.push(blockList[0]);
+                    } else {
+                        console.log(`Collision detected at ${targetKey}: ${blockList.length} blocks want to move there - blocking all`);
                     }
                 }
 
