@@ -1232,14 +1232,21 @@
             }
 
             drawTrajectoryPreview() {
-                if (!this.trajectoryPreview || this.trajectoryPreview.length === 0) {
+                if (!this.trajectoryPreview || this.trajectoryPreview.length === 0 || !this.activeBlock) {
                     return;
                 }
 
+                // Get the active block's color
+                const block = this.sideBlocks[this.activeBlock.side][this.activeBlock.position][0];
+                const blockColor = this.colors[block.color];
+
                 this.ctx.save();
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-                this.ctx.lineWidth = 3;
-                this.ctx.setLineDash([5, 5]);
+
+                // Use the block's color with good opacity for visibility
+                this.ctx.strokeStyle = blockColor;
+                this.ctx.globalAlpha = 0.7;
+                this.ctx.lineWidth = 4;
+                this.ctx.setLineDash([8, 8]);
 
                 // Draw dotted line through the path
                 this.ctx.beginPath();
@@ -1256,13 +1263,14 @@
                 this.ctx.stroke();
 
                 // Draw small circles at each position
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                this.ctx.fillStyle = blockColor;
+                this.ctx.globalAlpha = 0.6;
                 this.trajectoryPreview.forEach(pos => {
                     const x = this.gridOffsetX + pos.x * this.CELL_SIZE + this.CELL_SIZE / 2;
                     const y = this.gridOffsetY + pos.y * this.CELL_SIZE + this.CELL_SIZE / 2;
 
                     this.ctx.beginPath();
-                    this.ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    this.ctx.arc(x, y, 5, 0, Math.PI * 2);
                     this.ctx.fill();
                 });
 
