@@ -345,8 +345,10 @@
                 this.animatingBlocks = [];
                 this.movingBlocks = [];
 
-                // Mouse state
+                // Mouse/Touch state
                 this.hoveredBlock = null;
+                this.activeBlock = null; // Block being pressed (touch)
+                this.trajectoryPreview = null; // Preview path for active block
             }
 
             initializeSideBlocks() {
@@ -412,13 +414,23 @@
                 this.canvas.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     const touch = e.touches[0];
-                    this.handleClick(touch);
+                    this.handleTouchStart(touch);
                 });
 
                 this.canvas.addEventListener('touchmove', (e) => {
                     e.preventDefault();
                     const touch = e.touches[0];
-                    this.handleMouseMove(touch);
+                    this.handleTouchMove(touch);
+                });
+
+                this.canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.handleTouchEnd();
+                });
+
+                this.canvas.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    this.cancelActiveBlock();
                 });
             }
 
@@ -496,6 +508,97 @@
                         this.shootBlock(block.side, block.position);
                     }
                 }
+            }
+
+            handleTouchStart(touch) {
+                const pos = this.getMousePos(touch);
+                const block = this.getBlockAtMouse(pos.x, pos.y);
+
+                if (block && this.movingBlocks.length === 0) {
+                    // Check if this block will hit anything
+                    if (this.willBlockHitAnything(block.side, block.position)) {
+                        this.activeBlock = block;
+                        this.calculateTrajectoryPreview(block.side, block.position);
+
+                        // Haptic feedback - light vibration
+                        if (navigator.vibrate) {
+                            navigator.vibrate(10);
+                        }
+                    }
+                }
+            }
+
+            handleTouchMove(touch) {
+                const pos = this.getMousePos(touch);
+
+                // Check if touch moved into grid area - cancel if so
+                if (this.isPositionInGrid(pos.x, pos.y)) {
+                    this.cancelActiveBlock();
+                    return;
+                }
+
+                // Update selection if moved to different block
+                const block = this.getBlockAtMouse(pos.x, pos.y);
+                if (block && this.willBlockHitAnything(block.side, block.position)) {
+                    this.activeBlock = block;
+                    this.calculateTrajectoryPreview(block.side, block.position);
+                } else if (!block) {
+                    // Moved off blocks entirely - cancel
+                    this.cancelActiveBlock();
+                }
+            }
+
+            handleTouchEnd() {
+                if (this.activeBlock && this.movingBlocks.length === 0) {
+                    // Haptic feedback - slightly stronger vibration for shooting
+                    if (navigator.vibrate) {
+                        navigator.vibrate(20);
+                    }
+
+                    this.shootBlock(this.activeBlock.side, this.activeBlock.position);
+                }
+                this.cancelActiveBlock();
+            }
+
+            cancelActiveBlock() {
+                this.activeBlock = null;
+                this.trajectoryPreview = null;
+            }
+
+            isPositionInGrid(x, y) {
+                return x >= this.gridOffsetX &&
+                       x < this.gridOffsetX + this.config.N * this.CELL_SIZE &&
+                       y >= this.gridOffsetY &&
+                       y < this.gridOffsetY + this.config.N * this.CELL_SIZE;
+            }
+
+            calculateTrajectoryPreview(side, position) {
+                // Calculate the path the block will travel
+                const startPos = this.getStartPosition(side, position);
+                const block = this.sideBlocks[side][position][0];
+                const dir = this.directionVectors[block.direction];
+
+                const path = [];
+                let x = startPos.x;
+                let y = startPos.y;
+
+                while (true) {
+                    path.push({x, y});
+                    const nextX = x + dir.dx;
+                    const nextY = y + dir.dy;
+
+                    // Out of bounds or collision
+                    if (nextX < 0 || nextX >= this.config.N ||
+                        nextY < 0 || nextY >= this.config.N ||
+                        this.grid[nextY][nextX] !== null) {
+                        break;
+                    }
+
+                    x = nextX;
+                    y = nextY;
+                }
+
+                this.trajectoryPreview = path;
             }
 
             willBlockHitAnything(side, position) {
@@ -1003,6 +1106,9 @@
                 // Draw blocks on grid
                 this.drawGridBlocks();
 
+                // Draw trajectory preview (behind side blocks)
+                this.drawTrajectoryPreview();
+
                 // Draw side blocks
                 this.drawSideBlocks();
 
@@ -1062,10 +1168,14 @@
                             const pos = this.getSideBlockPosition(side, i, depth);
                             const block = positionBlocks[depth];
 
-                            // Only the shootable block (depth 0) can be hovered
+                            // Only the shootable block (depth 0) can be hovered or active
                             const isHovered = depth === 0 && this.hoveredBlock &&
                                             this.hoveredBlock.side === side &&
                                             this.hoveredBlock.position === i;
+
+                            const isActive = depth === 0 && this.activeBlock &&
+                                           this.activeBlock.side === side &&
+                                           this.activeBlock.position === i;
 
                             // Determine if arrow should be grayed
                             // - Waiting blocks (depth > 0): grayed
@@ -1073,7 +1183,7 @@
                             const canShoot = depth === 0 && this.willBlockHitAnything(side, i);
                             const grayedArrow = !canShoot;
 
-                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered, grayedArrow);
+                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered, grayedArrow, isActive);
                         }
                     }
                 });
@@ -1121,11 +1231,67 @@
                 this.animatingBlocks = this.animatingBlocks.filter(anim => anim.alpha > 0);
             }
 
-            drawBlock(x, y, colorIndex, direction, isHovered = false, grayedArrow = false) {
+            drawTrajectoryPreview() {
+                if (!this.trajectoryPreview || this.trajectoryPreview.length === 0) {
+                    return;
+                }
+
+                this.ctx.save();
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                this.ctx.lineWidth = 3;
+                this.ctx.setLineDash([5, 5]);
+
+                // Draw dotted line through the path
+                this.ctx.beginPath();
+                this.trajectoryPreview.forEach((pos, index) => {
+                    const x = this.gridOffsetX + pos.x * this.CELL_SIZE + this.CELL_SIZE / 2;
+                    const y = this.gridOffsetY + pos.y * this.CELL_SIZE + this.CELL_SIZE / 2;
+
+                    if (index === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                });
+                this.ctx.stroke();
+
+                // Draw small circles at each position
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                this.trajectoryPreview.forEach(pos => {
+                    const x = this.gridOffsetX + pos.x * this.CELL_SIZE + this.CELL_SIZE / 2;
+                    const y = this.gridOffsetY + pos.y * this.CELL_SIZE + this.CELL_SIZE / 2;
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+
+                this.ctx.restore();
+            }
+
+            drawBlock(x, y, colorIndex, direction, isHovered = false, grayedArrow = false, isActive = false) {
+                this.ctx.save();
+
+                // Apply scale and glow for active block
+                if (isActive) {
+                    const scale = 1.15;
+                    const centerX = x + this.CELL_SIZE / 2;
+                    const centerY = y + this.CELL_SIZE / 2;
+
+                    // Apply scale transform
+                    this.ctx.translate(centerX, centerY);
+                    this.ctx.scale(scale, scale);
+                    this.ctx.translate(-centerX, -centerY);
+
+                    // Add glowing effect
+                    this.ctx.shadowColor = this.colors[colorIndex];
+                    this.ctx.shadowBlur = 20;
+                }
+
                 // Draw block
                 this.ctx.fillStyle = this.colors[colorIndex];
 
-                if (isHovered) {
+                if (isHovered && !isActive) {
                     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
                     this.ctx.shadowBlur = 10;
                 }
@@ -1141,6 +1307,8 @@
 
                 // Draw direction indicator (only if direction is not null)
                 this.drawDirectionArrow(x, y, direction, grayedArrow);
+
+                this.ctx.restore();
             }
 
             drawDirectionArrow(x, y, direction, grayed = false) {
