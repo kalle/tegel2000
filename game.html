@@ -385,7 +385,39 @@
                 const block = this.getBlockAtMouse(pos.x, pos.y);
 
                 if (block && this.movingBlocks.length === 0) {
-                    this.shootBlock(block.side, block.position);
+                    // Check if this block will hit anything
+                    if (this.willBlockHitAnything(block.side, block.position)) {
+                        this.shootBlock(block.side, block.position);
+                    }
+                }
+            }
+
+            willBlockHitAnything(side, position) {
+                // Simulate the block's path to see if it hits anything
+                const startPos = this.getStartPosition(side, position);
+                const block = this.sideBlocks[side][position][0];
+                const dir = this.directionVectors[block.direction];
+
+                let x = startPos.x;
+                let y = startPos.y;
+
+                while (true) {
+                    const nextX = x + dir.dx;
+                    const nextY = y + dir.dy;
+
+                    // Out of bounds - won't hit anything
+                    if (nextX < 0 || nextX >= this.config.N ||
+                        nextY < 0 || nextY >= this.config.N) {
+                        return false;
+                    }
+
+                    // Found a collision - will hit something
+                    if (this.grid[nextY][nextX] !== null) {
+                        return true;
+                    }
+
+                    x = nextX;
+                    y = nextY;
                 }
             }
 
@@ -399,14 +431,17 @@
 
                 console.log(`Shooting block from ${side} position ${position}, color ${block.color}, direction ${block.direction}, starting at (${startPos.x}, ${startPos.y})`);
 
-                // Create moving block
+                // Create moving block with animation support
                 const movingBlock = {
                     color: block.color,
                     direction: block.direction,
                     x: startPos.x,
                     y: startPos.y,
-                    targetX: startPos.x,
-                    targetY: startPos.y,
+                    visualX: startPos.x,  // For smooth animation
+                    visualY: startPos.y,  // For smooth animation
+                    path: [],             // Path to follow
+                    pathIndex: 0,
+                    speed: 0.2,           // Animation speed
                     moving: true
                 };
 
@@ -418,8 +453,8 @@
                     direction: block.direction
                 });
 
-                // Calculate initial trajectory
-                this.moveBlockUntilCollision(movingBlock);
+                // Calculate path and start animation
+                this.calculateBlockPath(movingBlock);
             }
 
             getStartPosition(side, index) {
@@ -432,6 +467,42 @@
                         return {x: index, y: 0};
                     case 'down':
                         return {x: index, y: this.config.N - 1};
+                }
+            }
+
+            calculateBlockPath(block) {
+                // Calculate the full path the block will travel
+                const dir = this.directionVectors[block.direction];
+                let x = block.x;
+                let y = block.y;
+                const path = [{x, y}];
+
+                while (true) {
+                    const nextX = x + dir.dx;
+                    const nextY = y + dir.dy;
+
+                    // Check if out of bounds
+                    if (nextX < 0 || nextX >= this.config.N ||
+                        nextY < 0 || nextY >= this.config.N) {
+                        block.path = path;
+                        block.endsAtEdge = true;
+                        block.finalX = x;
+                        block.finalY = y;
+                        return;
+                    }
+
+                    // Check if collision with existing block
+                    if (this.grid[nextY][nextX] !== null) {
+                        block.path = path;
+                        block.endsAtEdge = false;
+                        block.finalX = x;
+                        block.finalY = y;
+                        return;
+                    }
+
+                    x = nextX;
+                    y = nextY;
+                    path.push({x, y});
                 }
             }
 
@@ -490,25 +561,20 @@
 
                 console.log(`Block sent to opposite side: ${side} position ${position}, color ${block.color}, new direction ${newDirection}`);
 
-                // Add to waiting queue (end of position's array)
+                // Add to FRONT of queue (becomes next shootable block)
                 const positionBlocks = this.sideBlocks[side][position];
                 if (positionBlocks) {
-                    positionBlocks.push({
+                    positionBlocks.unshift({
                         color: block.color,
                         direction: newDirection
                     });
 
-                    // Remove first (oldest) block if exceeds limit
+                    // Remove last (oldest) block if exceeds limit
                     if (positionBlocks.length > 1 + this.config.M) {
-                        positionBlocks.shift();
+                        positionBlocks.pop();
                     }
                 }
-
-                // Remove from moving blocks
-                const idx = this.movingBlocks.indexOf(block);
-                if (idx > -1) {
-                    this.movingBlocks.splice(idx, 1);
-                }
+                // Note: movingBlocks removal is handled by updateMovingBlocks()
             }
 
             placeBlock(block, x, y) {
@@ -518,11 +584,7 @@
                     direction: block.direction
                 };
 
-                // Remove from moving blocks
-                const idx = this.movingBlocks.indexOf(block);
-                if (idx > -1) {
-                    this.movingBlocks.splice(idx, 1);
-                }
+                // Note: movingBlocks removal is handled by updateMovingBlocks()
 
                 // Check for matches
                 setTimeout(() => {
@@ -657,11 +719,16 @@
                             direction: block.direction,
                             x: x,
                             y: y,
+                            visualX: x,
+                            visualY: y,
+                            path: [],
+                            pathIndex: 0,
+                            speed: 0.2,
                             moving: true
                         };
 
                         this.movingBlocks.push(movingBlock);
-                        this.moveBlockUntilCollision(movingBlock);
+                        this.calculateBlockPath(movingBlock);
                     });
 
                     // Check for matches again after a delay
@@ -836,18 +903,21 @@
                                             this.hoveredBlock.side === side &&
                                             this.hoveredBlock.position === i;
 
-                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered);
+                            // Check if shootable block can hit anything
+                            const isDisabled = depth === 0 && !this.willBlockHitAnything(side, i);
+
+                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered, isDisabled);
                         }
                     }
                 });
             }
 
             drawMovingBlocks() {
-                // Moving blocks are drawn in grid coordinates
+                // Moving blocks are drawn using visualX/visualY for smooth animation
                 this.movingBlocks.forEach(block => {
                     this.drawBlock(
-                        this.gridOffsetX + block.x * this.CELL_SIZE,
-                        this.gridOffsetY + block.y * this.CELL_SIZE,
+                        this.gridOffsetX + block.visualX * this.CELL_SIZE,
+                        this.gridOffsetY + block.visualY * this.CELL_SIZE,
                         block.color,
                         block.direction
                     );
@@ -884,11 +954,16 @@
                 this.animatingBlocks = this.animatingBlocks.filter(anim => anim.alpha > 0);
             }
 
-            drawBlock(x, y, colorIndex, direction, isHovered = false) {
+            drawBlock(x, y, colorIndex, direction, isHovered = false, isDisabled = false) {
                 // Draw block
                 this.ctx.fillStyle = this.colors[colorIndex];
 
-                if (isHovered) {
+                // Reduce opacity for disabled blocks
+                if (isDisabled) {
+                    this.ctx.globalAlpha = 0.3;
+                }
+
+                if (isHovered && !isDisabled) {
                     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
                     this.ctx.shadowBlur = 10;
                 }
@@ -904,6 +979,11 @@
 
                 // Draw direction indicator
                 this.drawDirectionArrow(x, y, direction);
+
+                // Reset alpha
+                if (isDisabled) {
+                    this.ctx.globalAlpha = 1.0;
+                }
             }
 
             drawDirectionArrow(x, y, direction) {
@@ -944,7 +1024,56 @@
                 this.ctx.fill();
             }
 
+            updateMovingBlocks() {
+                const blocksToRemove = [];
+
+                this.movingBlocks.forEach((block, index) => {
+                    if (block.path && block.path.length > 0) {
+                        // Get current target position
+                        const target = block.path[block.pathIndex];
+
+                        // Move towards target
+                        const dx = target.x - block.visualX;
+                        const dy = target.y - block.visualY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < block.speed) {
+                            // Reached target, move to next point in path
+                            block.visualX = target.x;
+                            block.visualY = target.y;
+                            block.pathIndex++;
+
+                            if (block.pathIndex >= block.path.length) {
+                                // Reached end of path
+                                block.x = block.finalX;
+                                block.y = block.finalY;
+
+                                if (block.endsAtEdge) {
+                                    this.sendToOppositeSide(block, block.finalX, block.finalY);
+                                } else {
+                                    this.placeBlock(block, block.finalX, block.finalY);
+                                }
+                                blocksToRemove.push(index);
+                            }
+                        } else {
+                            // Move towards target
+                            block.visualX += (dx / distance) * block.speed;
+                            block.visualY += (dy / distance) * block.speed;
+                        }
+                    }
+                });
+
+                // Remove blocks that finished moving (in reverse to preserve indices)
+                for (let i = blocksToRemove.length - 1; i >= 0; i--) {
+                    const idx = this.movingBlocks.indexOf(this.movingBlocks[blocksToRemove[i]]);
+                    if (idx > -1) {
+                        this.movingBlocks.splice(idx, 1);
+                    }
+                }
+            }
+
             animate() {
+                this.updateMovingBlocks();
                 this.draw();
                 requestAnimationFrame(() => this.animate());
             }
