@@ -397,6 +397,8 @@
                 const block = positionBlocks.shift();
                 const startPos = this.getStartPosition(side, position);
 
+                console.log(`Shooting block from ${side} position ${position}, color ${block.color}, direction ${block.direction}, starting at (${startPos.x}, ${startPos.y})`);
+
                 // Create moving block
                 const movingBlock = {
                     color: block.color,
@@ -485,6 +487,8 @@
                     position = finalX;
                 }
 
+                console.log(`Block sent to opposite side: ${side} position ${position}, color ${block.color}, new direction ${newDirection}`);
+
                 // Add to waiting queue (end of position's array)
                 const positionBlocks = this.sideBlocks[side][position];
                 if (positionBlocks) {
@@ -507,6 +511,7 @@
             }
 
             placeBlock(block, x, y) {
+                console.log(`Placing block at (${x}, ${y}), color: ${block.color}, direction: ${block.direction}`);
                 this.grid[y][x] = {
                     color: block.color,
                     direction: block.direction
@@ -525,6 +530,7 @@
             }
 
             checkAndRemoveMatches() {
+                console.log('=== checkAndRemoveMatches called ===');
                 const toRemove = new Set();
                 const checked = new Set();
 
@@ -540,11 +546,14 @@
 
                             // Only remove if we have Y or more connected blocks
                             if (connected.length >= this.config.Y) {
+                                console.log(`Found match: ${connected.length} blocks of color ${this.grid[y][x].color}`, connected);
                                 connected.forEach(pos => toRemove.add(`${pos.x},${pos.y}`));
                             }
                         }
                     }
                 }
+
+                console.log(`Total blocks to remove: ${toRemove.size}`, Array.from(toRemove));
 
                 if (toRemove.size > 0) {
                     // Animate removal
@@ -605,6 +614,7 @@
             }
 
             moveFreedBlocks() {
+                console.log('=== moveFreedBlocks called ===');
                 const blocksToMove = [];
 
                 // Find all blocks that can move
@@ -628,6 +638,8 @@
                         }
                     }
                 }
+
+                console.log(`Found ${blocksToMove.length} blocks that can move`, blocksToMove.map(b => `(${b.x},${b.y}) color:${b.block.color} dir:${b.block.direction}`));
 
                 if (blocksToMove.length > 0) {
                     // Move all freed blocks
