@@ -306,10 +306,10 @@
                     const idx = Math.floor(Math.random() * availableCells.length);
                     const {x, y} = availableCells.splice(idx, 1)[0];
 
-                    // Random color and direction
+                    // Random color, but NO direction (static blocks)
                     this.grid[y][x] = {
                         color: Math.floor(Math.random() * this.config.C),
-                        direction: Math.floor(Math.random() * 4)
+                        direction: null  // null means static block
                     };
                 }
             }
@@ -418,8 +418,8 @@
                     direction: block.direction
                 });
 
-                // Calculate initial trajectory (true = shot block, can go to opposite side)
-                this.moveBlockUntilCollision(movingBlock, true);
+                // Calculate initial trajectory
+                this.moveBlockUntilCollision(movingBlock);
             }
 
             getStartPosition(side, index) {
@@ -435,7 +435,7 @@
                 }
             }
 
-            moveBlockUntilCollision(block, isShotBlock = false) {
+            moveBlockUntilCollision(block) {
                 const dir = this.directionVectors[block.direction];
                 let x = block.x;
                 let y = block.y;
@@ -448,16 +448,9 @@
                     // Check if out of bounds
                     if (nextX < 0 || nextX >= this.config.N ||
                         nextY < 0 || nextY >= this.config.N) {
-
-                        // Only shot blocks go to opposite side
-                        // Freed blocks just stop at the edge
-                        if (isShotBlock) {
-                            console.log(`Shot block reached edge at (${x}, ${y}), sending to opposite side`);
-                            this.sendToOppositeSide(block, x, y);
-                        } else {
-                            console.log(`Freed block reached edge at (${x}, ${y}), stopping here`);
-                            this.placeBlock(block, x, y);
-                        }
+                        // Block goes to opposite side
+                        console.log(`Block reached edge at (${x}, ${y}), sending to opposite side`);
+                        this.sendToOppositeSide(block, x, y);
                         return;
                     }
 
@@ -629,6 +622,11 @@
                 for (let y = 0; y < this.config.N; y++) {
                     for (let x = 0; x < this.config.N; x++) {
                         if (this.grid[y][x] !== null) {
+                            // Skip static blocks (direction === null)
+                            if (this.grid[y][x].direction === null) {
+                                continue;
+                            }
+
                             const dir = this.directionVectors[this.grid[y][x].direction];
                             const nextX = x + dir.dx;
                             const nextY = y + dir.dy;
@@ -663,7 +661,7 @@
                         };
 
                         this.movingBlocks.push(movingBlock);
-                        this.moveBlockUntilCollision(movingBlock, false); // Freed blocks stop at edge
+                        this.moveBlockUntilCollision(movingBlock);
                     });
 
                     // Check for matches again after a delay
@@ -722,7 +720,8 @@
                             row.push('.');
                         } else {
                             const block = this.grid[y][x];
-                            const dirSymbol = ['→', '↓', '←', '↑'][block.direction];
+                            // Static blocks (direction === null) show as '○'
+                            const dirSymbol = block.direction === null ? '○' : ['→', '↓', '←', '↑'][block.direction];
                             row.push(`${block.color}${dirSymbol}`);
                         }
                     }
@@ -908,6 +907,9 @@
             }
 
             drawDirectionArrow(x, y, direction) {
+                // Don't draw arrow for static blocks (direction === null)
+                if (direction === null) return;
+
                 const centerX = x + this.CELL_SIZE / 2;
                 const centerY = y + this.CELL_SIZE / 2;
                 const size = 6;
