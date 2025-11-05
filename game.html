@@ -525,15 +525,21 @@
 
             checkAndRemoveMatches() {
                 const toRemove = new Set();
-                const visited = new Set();
 
-                // Check all blocks on grid
+                // Check all blocks on grid for horizontal and vertical matches
                 for (let y = 0; y < this.config.N; y++) {
                     for (let x = 0; x < this.config.N; x++) {
                         if (this.grid[y][x] !== null) {
-                            const connected = this.findConnectedBlocks(x, y);
-                            if (connected.length >= this.config.Y) {
-                                connected.forEach(pos => toRemove.add(`${pos.x},${pos.y}`));
+                            // Check horizontal line
+                            const horizontalMatches = this.findLineMatches(x, y, 1, 0);
+                            if (horizontalMatches.length >= this.config.Y) {
+                                horizontalMatches.forEach(pos => toRemove.add(`${pos.x},${pos.y}`));
+                            }
+
+                            // Check vertical line
+                            const verticalMatches = this.findLineMatches(x, y, 0, 1);
+                            if (verticalMatches.length >= this.config.Y) {
+                                verticalMatches.forEach(pos => toRemove.add(`${pos.x},${pos.y}`));
                             }
                         }
                     }
@@ -566,35 +572,34 @@
                 }
             }
 
-            findConnectedBlocks(startX, startY) {
+            findLineMatches(startX, startY, dx, dy) {
                 const block = this.grid[startY][startX];
                 if (!block) return [];
 
                 const color = block.color;
-                const connected = [];
-                const visited = new Set();
-                const queue = [{x: startX, y: startY}];
+                const matches = [{x: startX, y: startY}];
 
-                while (queue.length > 0) {
-                    const {x, y} = queue.shift();
-                    const key = `${x},${y}`;
-
-                    if (visited.has(key)) continue;
-                    visited.add(key);
-
-                    if (x < 0 || x >= this.config.N || y < 0 || y >= this.config.N) continue;
-                    if (this.grid[y][x] === null || this.grid[y][x].color !== color) continue;
-
-                    connected.push({x, y});
-
-                    // Check horizontal and vertical neighbors
-                    queue.push({x: x + 1, y});
-                    queue.push({x: x - 1, y});
-                    queue.push({x, y: y + 1});
-                    queue.push({x, y: y - 1});
+                // Check forward direction
+                let x = startX + dx;
+                let y = startY + dy;
+                while (x >= 0 && x < this.config.N && y >= 0 && y < this.config.N) {
+                    if (this.grid[y][x] === null || this.grid[y][x].color !== color) break;
+                    matches.push({x, y});
+                    x += dx;
+                    y += dy;
                 }
 
-                return connected;
+                // Check backward direction
+                x = startX - dx;
+                y = startY - dy;
+                while (x >= 0 && x < this.config.N && y >= 0 && y < this.config.N) {
+                    if (this.grid[y][x] === null || this.grid[y][x].color !== color) break;
+                    matches.push({x, y});
+                    x -= dx;
+                    y -= dy;
+                }
+
+                return matches;
             }
 
             moveFreedBlocks() {
