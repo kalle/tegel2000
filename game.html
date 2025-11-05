@@ -660,8 +660,8 @@
                         this.moveFreedBlocks();
                     }, 300);
                 } else {
-                    // Check win condition
-                    this.checkWinCondition();
+                    // No matches, but grid state may have changed - check for freed blocks
+                    this.moveFreedBlocks();
                 }
             }
 
