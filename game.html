@@ -696,6 +696,14 @@
                 const blocksToMove = [];
                 const targetPositions = new Map(); // Track where blocks want to move
 
+                // Direction priorities: DOWN (1) > LEFT (2) > UP (3) > RIGHT (0 = lowest)
+                const directionPriority = {
+                    1: 1, // down - highest priority
+                    2: 2, // left
+                    3: 3, // up
+                    0: 4  // right - lowest priority
+                };
+
                 // Find all blocks that can move and track their targets
                 for (let y = 0; y < this.config.N; y++) {
                     for (let x = 0; x < this.config.N; x++) {
@@ -726,13 +734,22 @@
                     }
                 }
 
-                // Only move blocks that don't have collision conflicts
+                // Resolve conflicts using priority system
                 for (const [targetKey, blockList] of targetPositions.entries()) {
-                    // If multiple blocks want to move to the same position, don't move any of them
                     if (blockList.length === 1) {
+                        // No conflict, move the block
                         blocksToMove.push(blockList[0]);
                     } else {
-                        console.log(`Collision detected at ${targetKey}: ${blockList.length} blocks want to move there - blocking all`);
+                        // Conflict: pick the block with highest priority (lowest priority number)
+                        blockList.sort((a, b) => {
+                            const priorityA = directionPriority[a.block.direction];
+                            const priorityB = directionPriority[b.block.direction];
+                            return priorityA - priorityB;
+                        });
+
+                        const winner = blockList[0];
+                        console.log(`Collision at ${targetKey}: ${blockList.length} blocks, winner: direction ${winner.block.direction} (priority ${directionPriority[winner.block.direction]})`);
+                        blocksToMove.push(winner);
                     }
                 }
 
