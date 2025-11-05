@@ -903,10 +903,12 @@
                                             this.hoveredBlock.side === side &&
                                             this.hoveredBlock.position === i;
 
-                            // Check if shootable block can hit anything
-                            const isDisabled = depth === 0 && !this.willBlockHitAnything(side, i);
+                            // Only show arrow if:
+                            // - It's the shootable block (depth 0) AND can hit something
+                            const canShoot = depth === 0 && this.willBlockHitAnything(side, i);
+                            const direction = canShoot ? block.direction : null;
 
-                            this.drawBlock(pos.x, pos.y, block.color, block.direction, isHovered, isDisabled);
+                            this.drawBlock(pos.x, pos.y, block.color, direction, isHovered);
                         }
                     }
                 });
@@ -954,16 +956,11 @@
                 this.animatingBlocks = this.animatingBlocks.filter(anim => anim.alpha > 0);
             }
 
-            drawBlock(x, y, colorIndex, direction, isHovered = false, isDisabled = false) {
+            drawBlock(x, y, colorIndex, direction, isHovered = false) {
                 // Draw block
                 this.ctx.fillStyle = this.colors[colorIndex];
 
-                // Reduce opacity for disabled blocks
-                if (isDisabled) {
-                    this.ctx.globalAlpha = 0.3;
-                }
-
-                if (isHovered && !isDisabled) {
+                if (isHovered) {
                     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
                     this.ctx.shadowBlur = 10;
                 }
@@ -977,13 +974,8 @@
 
                 this.ctx.shadowBlur = 0;
 
-                // Draw direction indicator
+                // Draw direction indicator (only if direction is not null)
                 this.drawDirectionArrow(x, y, direction);
-
-                // Reset alpha
-                if (isDisabled) {
-                    this.ctx.globalAlpha = 1.0;
-                }
             }
 
             drawDirectionArrow(x, y, direction) {
