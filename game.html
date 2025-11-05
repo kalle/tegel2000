@@ -48,6 +48,13 @@
             font-weight: bold;
         }
 
+        .high-score {
+            font-size: 1em;
+            color: #999;
+            font-weight: normal;
+            margin-left: 15px;
+        }
+
         .canvas-container {
             width: 100%;
             max-width: 600px;
@@ -180,6 +187,13 @@
                 font-size: 1.2em;
             }
 
+            .high-score {
+                font-size: 0.85em;
+                display: block;
+                margin-left: 0;
+                margin-top: 5px;
+            }
+
             .config {
                 gap: 10px;
             }
@@ -205,7 +219,10 @@
     <div class="game-container">
         <div class="header">
             <h1>Block Shooter</h1>
-            <div class="score">Score: <span id="scoreValue">0</span></div>
+            <div class="score">
+                Score: <span id="scoreValue">0</span>
+                <span class="high-score">(Best: <span id="highScoreValue">0</span>)</span>
+            </div>
         </div>
 
         <div class="canvas-container">
@@ -274,9 +291,26 @@
                     {dx: 0, dy: -1}   // up
                 ];
 
+                // Load high score from localStorage
+                this.highScore = this.loadHighScore();
+                this.updateHighScoreDisplay();
+
                 this.reset();
                 this.setupEventListeners();
                 this.animate();
+            }
+
+            loadHighScore() {
+                const saved = localStorage.getItem('blockShooterHighScore');
+                return saved ? parseInt(saved) : 0;
+            }
+
+            saveHighScore() {
+                localStorage.setItem('blockShooterHighScore', this.highScore.toString());
+            }
+
+            updateHighScoreDisplay() {
+                document.getElementById('highScoreValue').textContent = this.highScore;
             }
 
             reset() {
@@ -886,6 +920,13 @@
 
             updateScore() {
                 document.getElementById('scoreValue').textContent = this.score;
+
+                // Update high score if current score exceeds it
+                if (this.score > this.highScore) {
+                    this.highScore = this.score;
+                    this.saveHighScore();
+                    this.updateHighScoreDisplay();
+                }
             }
 
             serializeState() {
