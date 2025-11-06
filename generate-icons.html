@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Tegel Icons</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 { color: #667eea; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background: #5568d3; }
+        .preview {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .preview-item {
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .info {
+            margin-top: 20px;
+            color: #666;
+            max-width: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tegel Icon Generator</h1>
+        <p>Click the button below to generate and download app icons</p>
+
+        <button onclick="generateIcons()">Generate Icons</button>
+
+        <div class="preview">
+            <div class="preview-item">
+                <p>192x192</p>
+                <canvas id="icon192" width="192" height="192"></canvas>
+            </div>
+            <div class="preview-item">
+                <p>512x512</p>
+                <canvas id="icon512" width="512" height="512"></canvas>
+            </div>
+        </div>
+
+        <div class="info">
+            <p><strong>Instructions:</strong></p>
+            <ol style="text-align: left;">
+                <li>Click "Generate Icons" to create the icon files</li>
+                <li>Two PNG files will be downloaded: icon-192.png and icon-512.png</li>
+                <li>Place these files in the same folder as game.html</li>
+                <li>Your PWA is ready!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Draw stylized blocks to represent the game
+            const blockSize = size * 0.15;
+            const spacing = size * 0.05;
+
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+
+            // Draw a pattern of blocks
+            const positions = [
+                {x: 0.25, y: 0.25},
+                {x: 0.55, y: 0.25},
+                {x: 0.25, y: 0.55},
+                {x: 0.55, y: 0.55},
+                {x: 0.40, y: 0.40}
+            ];
+
+            positions.forEach((pos, i) => {
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = size * 0.02;
+                ctx.shadowOffsetX = size * 0.005;
+                ctx.shadowOffsetY = size * 0.005;
+
+                const x = pos.x * size;
+                const y = pos.y * size;
+
+                ctx.fillRect(x, y, blockSize, blockSize);
+
+                // Add direction arrow
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.shadowBlur = 0;
+
+                const centerX = x + blockSize / 2;
+                const centerY = y + blockSize / 2;
+                const arrowSize = blockSize * 0.25;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
+                ctx.lineTo(centerX + arrowSize, centerY + arrowSize);
+                ctx.lineTo(centerX - arrowSize, centerY);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Add "T" letter in bottom right
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.2}px Arial`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('T', size * 0.92, size * 0.92);
+        }
+
+        function downloadCanvas(canvas, filename) {
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        function generateIcons() {
+            const canvas192 = document.getElementById('icon192');
+            const canvas512 = document.getElementById('icon512');
+
+            drawIcon(canvas192);
+            drawIcon(canvas512);
+
+            // Download both icons
+            setTimeout(() => downloadCanvas(canvas192, 'icon-192.png'), 100);
+            setTimeout(() => downloadCanvas(canvas512, 'icon-512.png'), 500);
+
+            alert('Icons generated! Check your downloads folder for icon-192.png and icon-512.png');
+        }
+
+        // Draw previews on load
+        window.addEventListener('load', () => {
+            drawIcon(document.getElementById('icon192'));
+            drawIcon(document.getElementById('icon512'));
+        });
+    </script>
+</body>
+</html>

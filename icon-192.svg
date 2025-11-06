@@ -1,0 +1,28 @@
+<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="192" height="192" fill="url(#bg)"/>
+
+  <!-- Blocks -->
+  <rect x="48" y="48" width="28" height="28" fill="#FF6B6B" rx="2"/>
+  <rect x="105" y="48" width="28" height="28" fill="#4ECDC4" rx="2"/>
+  <rect x="48" y="105" width="28" height="28" fill="#45B7D1" rx="2"/>
+  <rect x="105" y="105" width="28" height="28" fill="#FFA07A" rx="2"/>
+  <rect x="76" y="76" width="28" height="28" fill="#98D8C8" rx="2"/>
+
+  <!-- Arrows on blocks -->
+  <polygon points="62,55 67,62 57,62" fill="white" opacity="0.7"/>
+  <polygon points="119,55 124,62 114,62" fill="white" opacity="0.7"/>
+  <polygon points="62,112 67,119 57,119" fill="white" opacity="0.7"/>
+  <polygon points="119,112 124,119 114,119" fill="white" opacity="0.7"/>
+  <polygon points="90,83 95,90 85,90" fill="white" opacity="0.7"/>
+
+  <!-- T letter -->
+  <text x="176" y="176" font-family="Arial, sans-serif" font-size="38" font-weight="bold" fill="white" text-anchor="end">T</text>
+</svg>
