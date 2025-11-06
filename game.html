@@ -8,16 +8,16 @@
     <title>Tegel</title>
 
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="./manifest.json">
 
     <!-- iOS Support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Tegel">
-    <link rel="apple-touch-icon" href="/icon-192.svg">
+    <link rel="apple-touch-icon" href="./icon-192.svg">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/icon-192.svg">
+    <link rel="icon" type="image/svg+xml" href="./icon-192.svg">
     <style>
         * {
             margin: 0;
@@ -1558,14 +1558,29 @@
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('./sw.js')
                     .then((registration) => {
-                        console.log('Tegel: Service Worker registered!', registration.scope);
+                        console.log('Tegel PWA: Service Worker registered successfully!', registration.scope);
+                        console.log('Tegel PWA: You can now install this app!');
                     })
                     .catch((error) => {
-                        console.log('Tegel: Service Worker registration failed:', error);
+                        console.error('Tegel PWA: Service Worker registration failed:', error);
                     });
             });
+
+            // Listen for install prompt
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                console.log('Tegel PWA: Install prompt available!');
+                deferredPrompt = e;
+            });
+
+            // Check if app is already installed
+            window.addEventListener('appinstalled', () => {
+                console.log('Tegel PWA: App installed successfully!');
+            });
+        } else {
+            console.log('Tegel PWA: Service Workers not supported in this browser');
         }
     </script>
 </body>

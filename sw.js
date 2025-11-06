@@ -1,10 +1,11 @@
 // Tegel Service Worker - Enables offline play
-const CACHE_NAME = 'tegel-v1';
+const CACHE_NAME = 'tegel-v2';
 const urlsToCache = [
-  '/game.html',
-  '/manifest.json',
-  '/icon-192.svg',
-  '/icon-512.svg'
+  './game.html',
+  './manifest.json',
+  './icon-192.svg',
+  './icon-512.svg',
+  './' // Cache the root as well
 ];
 
 // Install event - cache all game files
