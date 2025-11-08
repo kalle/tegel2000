@@ -47,6 +47,25 @@ Once installed:
 - Works offline - no internet needed after first install
 - All your settings and high scores are saved locally
 
+## 🔔 Getting Updates
+
+Tegel automatically checks for updates every time you open the app!
+
+**When a new version is available:**
+1. A notification banner appears at the bottom: "🎉 New version available!"
+2. You have two options:
+   - **Update Now** - Installs the update immediately and reloads the app
+   - **Later** - Dismisses the notification, you can update next time
+
+**How it works:**
+- Updates are detected automatically when you open the app
+- The new version downloads in the background
+- You choose when to activate it
+- The app reloads with the new version when you click "Update Now"
+- Your game data (settings, high scores) is preserved
+
+**No notification?** That means you're running the latest version! 🎉
+
 ## 🛠️ Technical Details
 
 The PWA implementation includes:

@@ -17,7 +17,15 @@ self.addEventListener('install', (event) => {
         return cache.addAll(urlsToCache);
       })
   );
-  self.skipWaiting(); // Activate immediately
+  // Don't skip waiting automatically - let the user decide
+});
+
+// Listen for skip waiting message from the page
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('Tegel: Activating new version...');
+    self.skipWaiting();
+  }
 });
 
 // Activate event - clean up old caches

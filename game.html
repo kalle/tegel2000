@@ -289,6 +289,71 @@
             color: #e0e0e0;
         }
 
+        /* Update notification */
+        .update-notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #667eea;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+            align-items: center;
+            gap: 15px;
+            z-index: 3000;
+            max-width: 90%;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .update-notification.show {
+            display: flex;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .update-notification button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .update-notification button:hover {
+            background: #f0f0f0;
+        }
+
+        .update-notification .dismiss {
+            background: transparent;
+            color: white;
+            text-decoration: underline;
+            padding: 8px 15px;
+        }
+
+        .update-notification .dismiss:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .update-notification {
+            background: #0f3460;
+            border: 2px solid #667eea;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             body {
@@ -390,6 +455,13 @@
                 <button onclick="game.toggleSettings()">Cancel</button>
             </div>
         </div>
+    </div>
+
+    <!-- Update Notification -->
+    <div class="update-notification" id="updateNotification">
+        <span>🎉 New version available!</span>
+        <button onclick="updateApp()">Update Now</button>
+        <button class="dismiss" onclick="dismissUpdate()">Later</button>
     </div>
 
     <script>
@@ -1553,8 +1625,36 @@
         const game = new BlockShooterGame();
     </script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker Registration & Update Management -->
     <script>
+        let waitingServiceWorker = null;
+
+        // Show update notification
+        function showUpdateNotification() {
+            const notification = document.getElementById('updateNotification');
+            notification.classList.add('show');
+            console.log('Tegel PWA: Update available!');
+        }
+
+        // Update app - activate the waiting service worker
+        function updateApp() {
+            if (waitingServiceWorker) {
+                console.log('Tegel PWA: Updating to new version...');
+                waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
+
+                // Hide notification
+                const notification = document.getElementById('updateNotification');
+                notification.classList.remove('show');
+            }
+        }
+
+        // Dismiss update notification
+        function dismissUpdate() {
+            const notification = document.getElementById('updateNotification');
+            notification.classList.remove('show');
+            console.log('Tegel PWA: Update dismissed');
+        }
+
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -1562,10 +1662,43 @@
                     .then((registration) => {
                         console.log('Tegel PWA: Service Worker registered successfully!', registration.scope);
                         console.log('Tegel PWA: You can now install this app!');
+
+                        // Check for updates every time the app is opened
+                        registration.update();
+
+                        // Listen for waiting service worker (new version available)
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('Tegel PWA: New version found, installing...');
+
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New service worker available
+                                    waitingServiceWorker = newWorker;
+                                    showUpdateNotification();
+                                }
+                            });
+                        });
+
+                        // Handle updates from a waiting service worker
+                        if (registration.waiting) {
+                            waitingServiceWorker = registration.waiting;
+                            showUpdateNotification();
+                        }
                     })
                     .catch((error) => {
                         console.error('Tegel PWA: Service Worker registration failed:', error);
                     });
+
+                // Reload the page when the new service worker takes control
+                let refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!refreshing) {
+                        refreshing = true;
+                        console.log('Tegel PWA: Reloading with new version...');
+                        window.location.reload();
+                    }
+                });
             });
 
             // Listen for install prompt
