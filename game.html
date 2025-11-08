@@ -415,7 +415,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <span class="version">v1.3 (Debug)</span>
+            <span class="version">v1.4 (Debug+)</span>
             <h1>Tegel</h1>
             <div class="score">
                 Score: <span id="scoreValue">0</span>
@@ -1705,13 +1705,15 @@
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                updateDebugInfo('🔄 Attempting to register Service Worker...');
+
                 navigator.serviceWorker.register('./sw.js')
                     .then((reg) => {
                         registration = reg; // Store for later use
                         console.log('Tegel PWA: Service Worker registered successfully!', reg.scope);
                         console.log('Tegel PWA: You can now install this app!');
 
-                        updateDebugInfo('✅ Service Worker registered. Checking for updates...');
+                        updateDebugInfo('✅ Service Worker registered! Scope: ' + reg.scope);
 
                         // Check for updates every time the app is opened
                         registration.update();
@@ -1745,7 +1747,7 @@
                     })
                     .catch((error) => {
                         console.error('Tegel PWA: Service Worker registration failed:', error);
-                        updateDebugInfo('❌ Service Worker registration failed');
+                        updateDebugInfo('❌ Registration failed: ' + error.message + '<br>Error: ' + error.toString());
                     });
 
                 // Reload the page when the new service worker takes control
@@ -1775,12 +1777,12 @@
             updateDebugInfo('❌ Service Workers not supported in this browser');
         }
 
-        // Initial status
+        // Show warning if registration takes too long (5 seconds)
         setTimeout(() => {
             if (!registration) {
-                updateDebugInfo('⏳ Waiting for Service Worker to register...');
+                updateDebugInfo('⚠️ Registration taking longer than expected...<br>Check if sw.js file exists at: ' + window.location.origin + window.location.pathname.replace('game.html', 'sw.js'));
             }
-        }, 100);
+        }, 5000);
     </script>
 </body>
 </html>
