@@ -1,5 +1,5 @@
 // Tegel Service Worker - Enables offline play
-const CACHE_NAME = 'tegel-v5';
+const CACHE_NAME = 'tegel-v6';
 const urlsToCache = [
   './game.html',
   './manifest.json',

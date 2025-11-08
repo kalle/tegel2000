@@ -415,7 +415,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <span class="version">v1.2</span>
+            <span class="version">v1.3 (Debug)</span>
             <h1>Tegel</h1>
             <div class="score">
                 Score: <span id="scoreValue">0</span>
@@ -431,6 +431,13 @@
             <button onclick="game.reset()">New Game</button>
             <button onclick="game.toggleSettings()" id="settingsBtn">⚙️ Settings</button>
             <button onclick="game.toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
+            <button onclick="manualUpdateCheck()" id="updateCheckBtn">🔄 Check Updates</button>
+        </div>
+
+        <!-- Debug Info -->
+        <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 5px; font-size: 0.85em;">
+            <div><strong>PWA Status:</strong></div>
+            <div id="debugInfo" style="margin-top: 5px; color: #666;">Loading...</div>
         </div>
     </div>
 
@@ -1639,11 +1646,40 @@
     <!-- Service Worker Registration & Update Management -->
     <script>
         let waitingServiceWorker = null;
+        let registration = null;
+
+        // Update debug info
+        function updateDebugInfo(message) {
+            const debug = document.getElementById('debugInfo');
+            if (debug) {
+                const timestamp = new Date().toLocaleTimeString();
+                debug.innerHTML = `${message}<br><small>Last updated: ${timestamp}</small>`;
+            }
+        }
+
+        // Manual update check
+        function manualUpdateCheck() {
+            updateDebugInfo('🔄 Checking for updates...');
+            if (registration) {
+                registration.update().then(() => {
+                    setTimeout(() => {
+                        if (waitingServiceWorker) {
+                            updateDebugInfo('✅ Update available! Look for banner below.');
+                        } else {
+                            updateDebugInfo('✅ You have the latest version (v1.2)');
+                        }
+                    }, 1000);
+                });
+            } else {
+                updateDebugInfo('❌ Service Worker not registered');
+            }
+        }
 
         // Show update notification
         function showUpdateNotification() {
             const notification = document.getElementById('updateNotification');
             notification.classList.add('show');
+            updateDebugInfo('🎉 Update available! See banner below.');
             console.log('Tegel PWA: Update available!');
         }
 
@@ -1670,9 +1706,12 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then((registration) => {
-                        console.log('Tegel PWA: Service Worker registered successfully!', registration.scope);
+                    .then((reg) => {
+                        registration = reg; // Store for later use
+                        console.log('Tegel PWA: Service Worker registered successfully!', reg.scope);
                         console.log('Tegel PWA: You can now install this app!');
+
+                        updateDebugInfo('✅ Service Worker registered. Checking for updates...');
 
                         // Check for updates every time the app is opened
                         registration.update();
@@ -1695,10 +1734,18 @@
                         if (registration.waiting) {
                             waitingServiceWorker = registration.waiting;
                             showUpdateNotification();
+                        } else {
+                            // No update waiting
+                            setTimeout(() => {
+                                if (!waitingServiceWorker) {
+                                    updateDebugInfo('✅ No updates available. Running v1.2');
+                                }
+                            }, 2000);
                         }
                     })
                     .catch((error) => {
                         console.error('Tegel PWA: Service Worker registration failed:', error);
+                        updateDebugInfo('❌ Service Worker registration failed');
                     });
 
                 // Reload the page when the new service worker takes control
@@ -1725,7 +1772,15 @@
             });
         } else {
             console.log('Tegel PWA: Service Workers not supported in this browser');
+            updateDebugInfo('❌ Service Workers not supported in this browser');
         }
+
+        // Initial status
+        setTimeout(() => {
+            if (!registration) {
+                updateDebugInfo('⏳ Waiting for Service Worker to register...');
+            }
+        }, 100);
     </script>
 </body>
 </html>
